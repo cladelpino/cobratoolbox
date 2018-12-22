@@ -81,15 +81,15 @@ if db
         end
         %Get the indices for database, qualifier and reference.
         relrows = cellfun(@(x) ischar(x) && ~isempty(x),raw.databaseid);
-        relarray = [raw.databaseid(relrows),raw.qualifier(relrows),raw.Model_Field(relrows), raw.referenced_Field(relrows),raw.DBPatterns(relrows)];
-        dbInfo = cell(0,5);
+        relarray = [raw.databaseid(relrows),raw.qualifier(relrows),raw.Model_Field(relrows), raw.referenced_Field(relrows),raw.DBPatterns(relrows),raw.qualifierType(relrows)];
+        dbInfo = cell(0,6);
         for i = 1:size(relarray)
             fieldRef = relarray{i,4}(1:end-1);
             dbs = strsplit(relarray{i,1},';');
             for db = 1:length(dbs)
                 quals = strsplit(relarray{i,2},';');
                 for qual = 1:length(quals)
-                    dbInfo(end+1,:) = {dbs{db},quals{qual},relarray{i,3},fieldRef,relarray{i,5}};
+                    dbInfo(end+1,:) = {dbs{db},quals{qual},relarray{i,3},fieldRef,relarray{i,5},relarray{i,6}};
                 end
             end
         end
@@ -142,8 +142,8 @@ if isempty(CBT_PROG_FIELD_PROPS)
      end
     %Get the indices for database, qualifier and reference.
     relrows = cellfun(@(x) ischar(x) && ~isempty(x),raw.Model_Field);
-    relarray = [raw.Model_Field(relrows),raw.Xdim(relrows),raw.Ydim(relrows),raw.Evaluator(relrows),raw.Default_Value(relrows),raw.FBABasicField(relrows),raw.FieldBasisType];
-    progInfo = cell(0,7);
+    relarray = [raw.Model_Field(relrows),raw.Xdim(relrows),raw.Ydim(relrows),raw.Evaluator(relrows),raw.Default_Value(relrows),raw.BasicFields(relrows),raw.FieldBasisType,raw.FBAFields(relrows)];
+    progInfo = cell(0,8);
     for i = 1:size(relarray)
         xval = relarray{i,2};
         if ~isnumeric(xval)
@@ -165,9 +165,10 @@ if isempty(CBT_PROG_FIELD_PROPS)
                 default = str2num(default);
             end
         end
-        fbaReq = eval(eval(relarray{i,6}));        
+        basic = eval(eval(relarray{i,6}));        
         FieldType = relarray{i,7};  
-        progInfo(i,:) = { relarray{i,1},xval,yval,relarray{i,4}, default,fbaReq,FieldType};
+        FBA = eval(eval(relarray{i,8}));        
+        progInfo(i,:) = { relarray{i,1},xval,yval,relarray{i,4}, default,basic,FieldType,FBA};
     end
     CBT_PROG_FIELD_PROPS = progInfo;
 end

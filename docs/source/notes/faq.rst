@@ -3,6 +3,8 @@ Frequently Asked Questions (FAQ)
 
 .. begin-faq-marker
 
+.. contents:: Table of contents
+
 .. |ImageLink| image:: https://img.shields.io/badge/COBRA-forum-blue.svg
 .. _ImageLink: https://groups.google.com/forum/#!forum/cobra-toolbox
 
@@ -25,6 +27,29 @@ please remove the installation directory from your MATLAB path.
     >> rmpath(genpath(CBTDIR)); % remove the directory from the path
     >> savepath % save the new path
     >> delete(CBTDIR,'s') % delete the installation directory
+
+
+I cannot update the COBRA Toolbox using ``updateCobraToolbox()``. Why?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Whenever the update of the COBRA Toolbox fails when running ``updateCobraToolbox()``,
+there is a chance that major restructurations happened recently. For instance, new submodules
+might have been added.
+
+Another reason for a failing update might be when the local version of the COBRA Toolbox is too old.
+In that case, the easiest is to reinstall (reclone) the COBRA Toolbox or the fork after
+having backed up the current version.
+
+In case the update fails because of changes in the COBRA Toolbox, please
+contribute your changes first by following the instructions `here <https://opencobra.github.io/cobratoolbox/stable/contributing.html>`.
+
+In case you do not want to contribute your changes and are familiar with ``git``, you may also type (beware, your changes will be lost!):
+
+.. code:: console
+
+    $ git stash # stash all potential changes
+    $ git add --all  # add all files first to stage
+    $ git reset --hard HEAD  # hard reset the repository
 
 
 When running ``git submodule update``, the following error message appears. What should I do?
@@ -76,6 +101,20 @@ In order to fix this issue, follow these steps:
 -  Finish the installation of CPLEX ``12.7.1``
 -  Restart your computer
 -  Start MATLAB and the above commands again
+
+On Linux, MATLAB Suddenly crashes without any error
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This can happen due to some MATLAB versions shipping broken libraries, in particular ``libssl.so.1.0.0``.
+To fix this, you will have to replace the matlab library by the system library as follows:
+
+.. code-block:: console
+
+    $ sudo mv <MATLAB_ROOT>/bin/glnxa64/libssl.so.1.0.0 <MATLAB_ROOT>/bin/glnxa64/libssl.so.1.0.0.old
+    $ sudo cp /lib/x86_64-linux-gnu/libssl.so.1.0.0 <MATLAB_ROOT>/bin/glnxa64/libssl.so.1.0.0
+
+where ``<MATLAB_ROOT>`` is the directory of your MATLAB installation.
+
 
 Parallel programming
 --------------------
@@ -147,5 +186,26 @@ What do all these labels on issues and PRs mean?
 A comprehensive list of labels and their description for the issues and
 pull requests is given
 `here <https://opencobra.github.io/cobratoolbox/docs/labels.html>`__.
+
+General
+-------
+
+After loading a model, I get errors when using it with toolbox functions. What can I do?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you used ``load('filename.mat')`` to load your model, you may encounter
+unexpected errors.  Please only use ``readCbModel('filename.mat')``.  Many
+models stored in a MATLAB format (.mat) contain outdated data structures, which
+are no longer compatible with the COBRA Toolbox. The ``readCbModel()`` function
+tries to convert these models to the current format and will inform you whether
+this was successful or not.
+
+If the ``readCbModel()`` call was unsuccessful, please use ``load`` again to
+load your model struct and run ``verifyModel(model)`` to determine which fields
+in the model are problematic.  You can then either try to correct the fields,
+or remove them, if they are not necessary for your analysis.
+
+If this does not solve your problem, feel free to report an issue as described
+`here <https://opencobra.github.io/cobratoolbox/docs/issueGuide.html>`__.
 
 .. end-faq-marker

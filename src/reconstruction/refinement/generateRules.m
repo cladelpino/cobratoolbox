@@ -1,4 +1,4 @@
-function [model] = generateRules(model)
+function [model] = generateRules(model, printLevel)
 % If a model does not have a model.rules field but has a model.grRules
 % field, can be regenerated using this script
 %
@@ -7,7 +7,9 @@ function [model] = generateRules(model)
 %    [model] = generateRules(model)
 %
 % INPUT:
-%    model:     COBRA model with model.grRules
+%    model:        COBRA model with model.grRules
+%    printLevel:   optional variable to print out all new genes 
+%                  (default = TRUE), can be zero if not needed
 %
 % OUTPUT:
 %    model:     same model but with model.rules added
@@ -17,22 +19,36 @@ function [model] = generateRules(model)
 %            - Diana El Assal 30/8/2017
 %            - Laurent Heirendt December 2017, speedup
 
-    preParsedGrRules = preparseGPR(model.grRules);  % preparse all model.grRules
-
+    if ~exist('printLevel', 'var')
+        printLevel = 1;
+    end
+    [preParsedGrRules,genes] = preparseGPR(model.grRules);  % preparse all model.grRules
+    allGenes =  unique([genes{~cellfun(@isempty,genes)}]); %Get the unique gene list
+    if (~isfield(model, 'genes'))
+        newGenes = allGenes;
+    else
+        newGenes = setdiff(allGenes,model.genes);
+    end
+    if ~isempty(newGenes)
+        if printLevel
+            warning('Found the following genes not present in the original model:\n%s\nAdding them to the model.',strjoin(newGenes,'\n'));
+        end
+        model = addGenes(model,newGenes);
+    end
+    
     % determine the number of rules
     nRules = length(model.grRules);
 
     % allocate the model.rules field
-    model.rules = cell(nRules, 1);
-
+    model.rules = cell(nRules, 1);    
     % loop through all the grRules
     for i = 1:nRules
         if ~isempty(preParsedGrRules{i})
-            [rule,~,newGenes] = parseGPR(preParsedGrRules{i}, model.genes,true);
-            if ~isempty(newGenes)
-                warning('Found the following genes not present in the original model:\n%s\nAdding them to the model.',strjoin(newGenes,'\n'));
-                model.genes = [model.genes ; newGenes];
-            end
+            genePos = zeros(numel(genes{i}));
+            for j = 1:numel(genes{i})
+                genePos(j) = find(strcmp(model.genes,genes{i}{j}));
+            end            
+            rule = parseGPR(preParsedGrRules{i}, genes{i}, true, genePos);    
             model.rules{i, 1} = rule;
         else
             model.rules{i, 1} = '';

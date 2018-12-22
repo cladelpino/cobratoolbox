@@ -109,9 +109,9 @@ function solution = optimizeCbModel(model, osenseStr, minNorm, allowLoops, zeroN
 %
 %                          * f - Objective value
 %                          * v - Reaction rates (Optimal primal variable, legacy FBAsolution.x)
-%                          * y - Dual
-%                          * w - Reduced costs
-%                          * s - Slacks
+%                          * y - Dual for the metabolites
+%                          * w - Reduced costs of the reactions
+%                          * s - Slacks of the metabolites
 %                          * stat - Solver status in standardized form:
 %
 %                            * `-1` - No solution reported (timelimit, numerical problem etc)
@@ -119,6 +119,16 @@ function solution = optimizeCbModel(model, osenseStr, minNorm, allowLoops, zeroN
 %                            * `2` - Unbounded solution
 %                            * `0` - Infeasible
 %                          * origStat - Original status returned by the specific solver
+%                    
+%                    If the input model contains `C` the following fields are added to the solution:
+%
+%                          * ctrs_y - the duals for the constraints from C
+%                          * ctrs_slack - Slacks of the additional constraints
+%
+%                    If the model contains the `E` field, the following fields are added to the solution:
+%
+%                          * vars_v - The optimal primal values of the variables
+%                          * vars_w - The reduced costs of the additional variables from E 
 %
 % .. Author:
 %       - Markus Herrgard       9/16/03
@@ -157,23 +167,18 @@ function solution = optimizeCbModel(model, osenseStr, minNorm, allowLoops, zeroN
 
 if exist('osenseStr', 'var') % Process arguments and set up problem
     if isempty(osenseStr)
-        osenseStr = 'max';
+        model.osenseStr = 'max';
+    else
+        model.osenseStr = osenseStr;
     end
 else
     if isfield(model, 'osenseStr')
-        osenseStr = model.osenseStr;
+        model.osenseStr = model.osenseStr;
     else
-        osenseStr = 'max';
+        model.osenseStr = 'max';
     end
 end
 % Figure out objective sense
-if strcmpi(osenseStr,'max')
-    LPproblem.osense = -1;
-elseif strcmpi(osenseStr,'min')
-    LPproblem.osense = +1;
-else
-    error('%s is not a valid osenseStr. Use either ''min'' or ''max''' ,osenseStr);
-end
 
 if exist('minNorm', 'var')
     if isempty(minNorm)
@@ -210,133 +215,20 @@ end
 % size of the stoichiometric matrix
 [nMets,nRxns] = size(model.S);
 
-%make sure C is present if d is present
-if ~isfield(model,'C') && isfield(model,'d')
-    error('For the constraints C*v <= d, both must be present')
-end
-
-if isfield(model,'C')
-    [nIneq,nltC]=size(model.C);
-    [nIneq2,nltd]=size(model.d);
-    if nltC~=nRxns
-        error('For the constraints C*v <= d the number of columns of S and C are inconsisent')
-    end
-    if nIneq~=nIneq2
-        error('For the constraints C*v <= d, the number of rows of C and d are inconsisent')
-    end
-    if nltd~=1
-        error('For the constraints C*v <= d, d must have only one column')
-    end
-else
-    nIneq=0;
-end
-
-if ~isfield(model,'dxdt')
-    if isfield(model,'b')
-        %old style model
-        if length(model.b)==nMets
-            model.dxdt=model.b;
-            %model=rmfield(model,'b'); %tempting to do this
-        else
-            if isfield(model,'C')
-                %new style model, b must be rhs for [S;C]*v {=,<=,>=} [dxdt,d] == b
-                if length(model.b)~=nMets+nIneq
-                    error('model.b must equal the number of rows of [S;C]')
-                end
-            else
-                error('model.b must equal the number of rows of S or [S;C]')
-            end
-        end
-    else
-        fprintf('%s\n','We assume that all mass balance constraints are equalities, i.e., S*v = 0')
-        model.dxdt=zeros(nMets,1);
-    end
-else
-    if length(model.dxdt)~=size(model.S,1)
-        error('Number of rows in model.dxdt and model.S must match')
-    end
-end
-
-%check the csense and make sure it is consistent
-if isfield(model,'C')
-    if ~isfield(model,'csense')
-        if printLevel>1
-            fprintf('%s\n','No defined csense.')
-            fprintf('%s\n','We assume that all mass balance constraints are equalities, i.e., S*v = 0')
-        end
-        model.csense(1:nMets,1) = 'E';
-    else
-        if length(model.csense)==nMets
-            model.csense = columnVector(model.csense);
-        else
-            if length(model.csense)==nMets+nIneq
-                %this is a workaround, a model should not be like this
-                model.dsense=model.csense(nMets+1:nMets+nIneq,1);
-                model.csense=model.csense(1:nMets,1);
-            else
-                error('Length of csense is invalid!')
-            end
-        end
-    end
-    
-    if ~isfield(model,'dsense')
-        if printLevel>1
-            fprintf('%s\n','No defined dsense.')
-            fprintf('%s\n','We assume that all constraints C & d constraints are C*v <= d')
-        end
-        model.dsense(1:nIneq,1) = 'L';
-    else
-        if length(model.dsense)~=nIneq
-            error('Length of dsense is invalid! Defaulting to equality constraints.')
-        else
-            model.dsense = columnVector(model.dsense);
-        end
-    end
-else
-    if ~isfield(model,'csense')
-        % If csense is not declared in the model, assume that all constraints are equalities.
-        if printLevel>1
-            fprintf('%s\n','We assume that all mass balance constraints are equalities, i.e., S*v = dxdt = 0')
-        end
-        model.csense(1:nMets,1) = 'E';
-    else % if csense is in the model, move it to the lp problem structure
-        if length(model.csense)~=nMets
-            error('The length of csense does not match the number of rows of model.S.')
-            model.csense(1:nMets,1) = 'E';
-        else
-            model.csense = columnVector(model.csense);
-        end
-    end
-end
-
-%now build the equality and inequality constraint matrices
-if isfield(model,'d')
-    LPproblem.b = [model.dxdt;model.d];
-else
-    LPproblem.b = model.dxdt;
-end
-
-if isfield(model,'C')
-    LPproblem.A = [model.S;model.C];
-    %copy over the constraint sense also
-    LPproblem.csense=[model.csense;model.dsense];
-else
-    %copy over the constraint sense also
-    LPproblem.csense=model.csense;
-    LPproblem.A = model.S;
-end
-
-%linear objective coefficient
-LPproblem.c = model.c;
-
-%box constraints
-LPproblem.lb = model.lb;
-LPproblem.ub = model.ub;
+LPproblem = buildLPproblemFromModel(model);
 
 %Double check that all inputs are valid:
 if ~(verifyCobraProblem(LPproblem, [], [], false) == 1)
     warning('invalid problem');
     return;
+end
+
+if isfield(model,'C')
+    nCtrs = size(model.C,1);
+end
+
+if isfield(model,'E')
+    nVars = size(model.E,2);
 end
 
 %%
@@ -370,6 +262,8 @@ end
 
 objective = solution.obj; % save for later use.
 
+[nTotalConstraints,nTotalVars] = size(LPproblem.A);
+
 if strcmp(minNorm, 'one')
     % Minimize the absolute value of fluxes to 'avoid' loopy solutions
     % Solve secondary LP to minimize one-norm of |v|
@@ -381,35 +275,23 @@ if strcmp(minNorm, 'one')
     % 5: c'v1 >= f or c'v1 <= f (optimal value of objective)
     %
     % delta+,delta- >= 0
-    LPproblem2.A = [model.S sparse(nMets,2*nRxns);
-        speye(nRxns,nRxns) speye(nRxns,nRxns) sparse(nRxns,nRxns);
-        -speye(nRxns,nRxns) sparse(nRxns,nRxns) speye(nRxns,nRxns);
-        model.c' sparse(1,2*nRxns)];
-    LPproblem2.c  = [zeros(nRxns,1);ones(2*nRxns,1)];
-    LPproblem2.lb = [model.lb;zeros(2*nRxns,1)];
-    LPproblem2.ub = [model.ub;Inf*ones(2*nRxns,1)];
+    
+    LPproblem2.A = [LPproblem.A sparse(nMets,2*nRxns);
+        speye(nRxns,nTotalVars) speye(nRxns,nRxns) sparse(nRxns,nRxns);
+        -speye(nRxns,nTotalVars) sparse(nRxns,nRxns) speye(nRxns,nRxns);
+        LPproblem.c' sparse(1,2*nRxns)];
+    LPproblem2.c  = [zeros(nTotalVars,1);ones(2*nRxns,1)];
+    LPproblem2.lb = [LPproblem.lb;zeros(2*nRxns,1)];
+    LPproblem2.ub = [LPproblem.ub;Inf*ones(2*nRxns,1)];
     LPproblem2.b  = [LPproblem.b;zeros(2*nRxns,1);solution.obj];
-    if ~isfield(model,'csense')
-        % If csense is not declared in the model, assume that all
-        % constraints are equalities.
-        LPproblem2.csense(1:nMets) = 'E';
-    else % if csense is in the model, move it to the lp problem structure
-        if length(model.csense)~=nMets
-            warning('Length of csense is invalid! Defaulting to equality constraints.')
-            LPproblem2.csense(1:nMets) = 'E';
-        else
-            LPproblem2.csense = columnVector(model.csense);
-        end
-    end
-    LPproblem2.csense((nMets+1):(nMets+2*nRxns)) = 'G';
+    LPproblem2.csense = [LPproblem.csense; repmat('G',2*nRxns,1)];    
 
     % constrain the optimal value according to the original problem
     if LPproblem.osense==-1
-        LPproblem2.csense(nMets+2*nRxns+1) = 'G';
+        LPproblem2.csense(end+1) = 'G';
     else
-        LPproblem2.csense(nMets+2*nRxns+1) = 'L';
+        LPproblem2.csense(end+1) = 'L';
     end
-    LPproblem2.csense = columnVector(LPproblem2.csense);
     LPproblem2.osense = 1;
     % Re-solve the problem
     if allowLoops
@@ -417,7 +299,7 @@ if strcmp(minNorm, 'one')
         solution.dual = []; % slacks and duals will not be valid for this computation.
         solution.rcost = [];
     else
-        MILPproblem2 = addLoopLawConstraints(LPproblem, model, 1:nRxns);
+        MILPproblem2 = addLoopLawConstraints(LPproblem2, model, 1:nRxns);
         solution = solveCobraMILP(MILPproblem2);
     end
 elseif strcmp(minNorm, 'zero')
@@ -494,17 +376,19 @@ end
 
 % Store results
 if (solution.stat == 1)
-    %solution found.
+    % solution found. Set corresponding values
     solution.x = solution.full(1:nRxns);
-
-    if isfield(solution,'dual')
-        if ~isempty(solution.dual)
-            solution.dual=solution.dual(1:size(LPproblem.A,1),1);
-        end
+    solution.v = solution.x;
+    % handle the objective, otherwise another objective value could be 
+    % returned and we only want to return the value of the defined
+    % model objective
+    if isfield(model,'E')
+        solution.vars_v = solution.full(nRxns+1:nRxns+nVars);        
+        solution.f = model.c'*solution.v + model.evarc' * solution.vars_v; % We need to consider the 
+    else
+        solution.f = model.c'*solution.full(1:nRxns); %objective from original optimization problem.
     end
-
-    %this line IS necessary.
-    solution.f = model.c'*solution.full(1:nRxns); %objective from original optimization problem.
+    % Check objective quality
     if abs(solution.f - objective) > .01
         if strcmp(minNorm,'one')
             display('optimizeCbModel.m warning:  objective appears to have changed while minimizing taxicab norm');
@@ -512,14 +396,51 @@ if (solution.stat == 1)
             error('optimizeCbModel.m: minimizing Euclidean norm did not work')
         end
     end
-
+    
+    % handle the duals, reducing them to fields in the model.
+    if isfield(solution,'dual')
+        if ~isempty(solution.dual)
+            if isfield(model,'C')
+                solution.ctrs_y = solution.dual(nMets+1:nMets+nCtrs,1);
+            end
+            solution.dual=solution.dual(1:nMets,1);            
+        end    
+    end            
+    
+    % handle reduced costs 
+    if isfield(solution,'rcost')
+        if ~isempty(solution.rcost)
+            if isfield(model,'E')
+                solution.vars_w = solution.rcost(nRxns+1:nRxns+nVars,1);
+            end
+            solution.rcost=solution.rcost(1:nRxns,1);            
+        end
+    end     
+    
+    % handle slacks
+    if isfield(solution,'slack')
+        if ~isempty(solution.slack)
+            if isfield(model,'C')
+                solution.ctrs_s = solution.slack(nMets+1:nMets+nCtrs,1);
+            end
+            solution.slack=solution.slack(1:nMets,1);            
+        end
+    end     
+    
     %if (~primalOnlyFlag && allowLoops && any(~minNorm)) % LP rcost/dual only correct if not doing minNorm
     % LP rcost/dual are still meaninful if doing, one simply has to be aware that there is a
     % perturbation to them the magnitude of which depends on norm(minNorm) - Ronan
     if (~primalOnlyFlag && allowLoops)
-        solution.y = solution.dual;
-        solution.w = solution.rcost;
+        solution.y = solution.dual;          
+        solution.w = solution.rcost; 
+        solution.s = solution.slack;
     end
+    fieldOrder = {'full';'obj';'rcost';'dual';'slack';'solver';'algorithm';'stat';'origStat';'time';'basis';'vars_v';'vars_w';'ctrs_y';'ctrs_s';'f';'x';'v';'w';'y';'s'};
+    % reorder fields for better reradability
+    currentfields = fieldnames(solution);
+    presentfields = ismember(fieldOrder,currentfields);
+    absentfields = ~ismember(currentfields,fieldOrder);
+    solution = orderfields(solution,[currentfields(absentfields),fieldOrder(presentfields)]);
 else
     %some sort of error occured.
     if printLevel>0
@@ -527,19 +448,12 @@ else
     end
     solution.f = 0;
     solution.x = [];
+    solution.v = solution.x;
 end
 
-solution.stat = solution.stat;
-solution.origStat = solution.origStat;
-solution.solver = solution.solver;
 solution.time = etime(clock, t1);
-solution.v = solution.x;%eventually we should depreciate solution.x
 
-%remove fields from solveCobraLP
-%{
-solution   = rmfield(solution,'obj');
-solution   = rmfield(solution,'full');
-solution   = rmfield(solution,'rcost');
-solution   = rmfield(solution,'dual');
-solution   = rmfield(solution,'slack');
-%}
+
+
+
+

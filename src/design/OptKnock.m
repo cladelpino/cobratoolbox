@@ -57,6 +57,11 @@ function [optKnockSol, bilevelMILPproblem] = OptKnock(model, selectedRxnList, op
 % irreversible reactions. If you wish to constrain a reaction, use
 % `constrOpt`.
 
+if isfield(model,'C') || isfield(model,'E')
+    issueConfirmationWarning('optKnock does not handle the additional constraints and variables defined in the model structure (fields .C and .E.)\n It will only use the stoichiometry provided.');
+end
+
+
 global MILPproblemType;
 global selectedRxnIndIrrev;
 global rxnList;
@@ -97,6 +102,13 @@ else
     solutionFileName = solutionFileNameTmp;
 end
 
+if ~isfield(options,'targetRxn') || any(~ismember(options.targetRxn,model.rxns))
+    if ~isfield(options, 'targetRxn')
+        error('No target reaction (options.targetRxn) defined')
+    else
+        error('The reaction %s is not part of the model. Try using searchModel(model, ''%s'') to find reactions with a similar name.',options.targetRxn,options.targetRxn);
+    end
+end
 % Convert to irreversible rxns
 [modelIrrev,matchRev,rev2irrev,irrev2rev] = convertToIrreversible(model,'OrderReactions',true);
 

@@ -1,7 +1,7 @@
 .. _testGuide:
 
 Guide for writing a test
-========================
+------------------------
 
 Before starting to write a test on your own, it might be instructive to
 follow common test practices in ``/test/verifiedTests``. A style guide
@@ -9,7 +9,7 @@ on how to write tests is given
 `here <https://opencobra.github.io/cobratoolbox/docs/styleGuide.html>`__.
 
 Prepare the test (define requirements)
---------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 There are functions that need a specific solver or that can only be run
 if a certain toolbox is installed on a system. To address these, you
@@ -29,8 +29,7 @@ contain at most one solver.
 
 Here are a few examples:
 
-Example A: Require Windows for the test
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. rubric:: Example A: Require Windows for the test
 
 The same works with ``needsMac``, ``needsLinux`` and ``needsUnix``
 instead of ``needsWindows``.
@@ -39,8 +38,7 @@ instead of ``needsWindows``.
 
     solvers = prepareTest('needsWindows', true);
 
-Example B: Require an LP solver (``needsLP``)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. rubric:: Example B: Require an LP solver (``needsLP``)
 
 The same works with ``needsNLP``, ``needsMILP``, ``needsQP`` or
 ``needsMIQP``. ``solvers.LP``, ``solvers.MILP`` etc. will be cell arrays
@@ -54,8 +52,7 @@ array is empty).
 
     solvers = prepareTest('needsLP', true);
 
-Example C: Use multiple solvers if present
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. rubric:: Example C: Use multiple solvers if present
 
 If multiple solvers are requested. ``solvers.LP``, ``solvers.MILP`` etc
 will contain all those requested solvers that can solve the respective
@@ -65,8 +62,7 @@ problem type and that are installed.
 
     solvers = prepareTest('needsLP', true, 'useSolversIfAvailable', {'ibm_cplex', 'gurobi'});
 
-Example D: Require one of a set of solvers
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. rubric:: Example D: Require one of a set of solvers
 
 Some functionalities do only work properly with a limited set of solvers.
 with the keyword ``requireOneSolverOf`` you can specify a set of solvers
@@ -79,8 +75,7 @@ you would call ``prepareTest`` as
 
     solvers = prepareTest('requireOneSolverOf', {'ibm_cplex', 'gurobi'})
 
-Example E: Exclude a solver
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. rubric:: Example E: Exclude a solver
 
 If for some reason, a function is known not to work with a few specific
 solvers (e.g. precision is insufficient) but works with all others, it
@@ -93,8 +88,7 @@ you would use the following command:
 
     solvers = prepareTest('excludeSolvers', {'matlab', 'lp_solve'})
 
-Example F: Require multiple solvers
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. rubric:: Example F: Require multiple solvers
 
 Some tests require more than one solver to be run, and otherwise fail. To
 require multiple solvers for a test use the ``requiredSolvers`` parameters.
@@ -105,8 +99,7 @@ call:
 
     solvers = prepareTest('requiredSolvers', {'ibm_cplex', 'gurobi'})
 
-Example G: Require a specific MATLAB toolbox
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. rubric:: Example G: Require a specific MATLAB toolbox
 
 The toolbox IDs are specified as those used in ``license('test',
 'toolboxName')``.  The following example requires the statistics toolbox
@@ -116,8 +109,7 @@ to be present.
 
     solvers = prepareTest('requiredToolboxes', {'statistics_toolbox'})
 
-Example H: Multiple requirements
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. rubric:: Example H: Multiple requirements
 
 If the test requires multiple different properties to be met, you should
 test them all in the same call. To keep the code readable, first define
@@ -135,7 +127,7 @@ the requirements and then pass them in.
     solversPkgs = prepareTest('requiredSolvers', requiredSolvers, 'requiredToolboxes', requiredToolboxes, 'needsUnix', true);
 
 Test if an output is correct
-----------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 If you want to test if the output of a function
 ``[output1, output2] = function1(input1, input2)`` is correct, you
@@ -174,7 +166,7 @@ The test succeeds if the argument of ``assert()`` yields a ``true``
 logical condition.
 
 Test if a function throws an error or warning message
------------------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 If you want to test whether your ``function1`` correctly throws an
 **error** message, you can test as follows:
@@ -183,10 +175,10 @@ If you want to test whether your ``function1`` correctly throws an
 
     % Case 5: test with 2 input and 1 output arguments (2nd input argument is of wrong dimension)
     % There are two options. If a particular error message is to be tested (here, 'Input2 has the wrong dimension'):
-    assert(verifyCobraFunctionError(@() function1(input1,input2'),'Input2 has the wrong dimension'));
+    assert(verifyCobraFunctionError('function1', 'inputs', {input1, input2'}, 'testMessage', 'Input2 has the wrong dimension'));
 
     % If the aim is to test, that the function throws an error at all
-    assert(verifyCobraFunctionError(@() function1(input1,input2')));
+    assert(verifyCobraFunctionError('function1', 'inputs', {input1, input2'}));
 
 If you want to test whether your ``function1`` correctly throws a
 **warning** message, you can test as follows:
@@ -202,14 +194,13 @@ Note that this allows the error message to be thrown without failing the
 test.
 
 Test template
--------------
+~~~~~~~~~~~~~
 
 A test template is readily available
 `here <https://opencobra.github.io/cobratoolbox/docs/testTemplate.html>`__.
 The following sections shall be included in a test file:
 
-1. Header
-^^^^^^^^^
+.. rubric:: 1. Header
 
 .. code-block:: matlab
 
@@ -222,21 +213,19 @@ The following sections shall be included in a test file:
     %     - <major change>: <your name> <date>
     %
 
-2. Test initialization
-^^^^^^^^^^^^^^^^^^^^^^
+.. rubric:: 2. Test initialization
 
 .. code-block:: matlab
 
     global CBTDIR
+    
+    % save the current path and switch to the test path
+    currentDir = cd(fileparts(which('fileName'))); 
 
-    % save the current path
-    currentDir = pwd;
+    % get the path of the test folder	    
+    testPath = pwd;
 
-    % initialize the test
-    cd(fileparts(which('fileName')));
-
-3. Define the solver packages to be tested and the tolerance
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. rubric:: 3. Define the solver packages to be tested and the tolerance
 
 .. code-block:: matlab
 
@@ -246,32 +235,25 @@ The following sections shall be included in a test file:
     % define the solver packages to be used to run this test
     solvers = prepareTest('needsLP',true);
 
-4. Load a model and/or reference data
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. rubric:: 4. Load a model and/or reference data
 
 .. code-block:: matlab
 
-    % load the model
-    load([CBTDIR filesep 'test' filesep 'models' filesep 'testModel.mat'], 'model');
-    load('testData_functionToBeTested.mat');
+    % load a model distributed by the toolbox
+    getDistributedModel('testModel.mat');
+    % load a particular model for this test:
+    readCbModel([testPath filesep 'SpecificModel.mat'])
+    % load reference data
+    load([testPath filesep 'testData_functionToBeTested.mat']);
 
 Please only load *small* models, i.e. less than ``100`` reactions. If
 you want to use a non-standard test model that is already available
 online, please make a pull request with the URL entry to the
 `COBRA.models repository <https://github.com/cobrabot/COBRA.models>`__.
 
-:warning: In order to guarantee compatibility across platforms, please
-use the full path to the model. For instance:
+:warning: In order to guarantee compatibility across platforms, please use the full path to the model. For instance:
 
-.. code-block:: matlab
-
-    global CBTDIR
-
-    % load the ecoli core model
-    load([CBTDIR filesep 'test' filesep 'models' filesep 'ecoli_core_model.mat'], 'model');
-
-5. Create a parallel pool
-^^^^^^^^^^^^^^^^^^^^^^^^^
+.. rubric:: 5. Create a parallel pool
 
 This is only necessary for tests that test a function that runs in
 parallel.
@@ -287,10 +269,10 @@ parallel.
 :warning: Please only launch a pool of ``2`` workers - more workers
 should not be needed to test a parallel function efficiently.
 
-6. Body of test
-^^^^^^^^^^^^^^^
+.. rubric:: 6. Body of test
 
-The test. If multiple solvers were requested by ‘useIfAvailable’, run:
+
+The test itself. If the solvers are essential for the functionality tested in this test use:
 
 .. code-block:: matlab
 
@@ -304,18 +286,19 @@ The test. If multiple solvers were requested by ‘useIfAvailable’, run:
         fprintf('Done.\n');
     end
 
-If only one solver is requested:
+This is important, as the continuous integration system will run other solvers on the test in its nightly build. That way, 
+we can determine solvers that work with a specific method, and those that do not (potentially due to precision problems or other issues).
+If the solvers are only used to test the outputs of a function for correctness, use:
 
 .. code-block:: matlab
 
-    solverLPOK = changeCobraSolver(solvers.LP, 'LP', 0);
+    solverLPOK = changeCobraSolver(solvers.LP{1}, 'LP', 0);
     % <your test goes here>
 
     % output a success message
     fprintf('Done.\n');
 
-7. Change to the current directory
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. rubric:: 7. Return to the original directory
 
 .. code-block:: matlab
 
@@ -323,7 +306,7 @@ If only one solver is requested:
     cd(currentDir)
 
 Run the test locally on your machine
-------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Please make sure that your test runs individually by typing after a
 fresh start:
@@ -346,7 +329,7 @@ Alternatively, you can run the test suite in the background by typing:
     $ matlab -nodesktop -nosplash < test/testAll.m
 
 Verify that your test passed
-----------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Once your pull request (PR) has been submitted, you will notice an
 orange mark next to your latest commit. Once the continuous integration
@@ -354,7 +337,7 @@ orange mark next to your latest commit. Once the continuous integration
 failed, you will see a red cross.
 
 What should I do in case my PR failed?
---------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 You can check why your PR failed by clicking on the mark and following
 the respective links. Alternatively, you can see the output of the CI
@@ -376,7 +359,7 @@ Common errors include:
    ``verLessThan('matlab', '<version>')``.
 
 Can I find out how many tests have failed?
-------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The logical conditions, when tested using ``assert()``, will throw an
 error when not satisfied. It is bad practice to test the sum of tests

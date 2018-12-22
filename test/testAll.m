@@ -25,7 +25,10 @@ if isempty(strfind(getenv('HOME'), 'jenkins'))
     else
         launchTestSuite = false;
     end
-else
+else            
+    % on the CI, always reset the path to make absolutely sure, that we test
+    % the current version
+    restoredefaultpath()
     launchTestSuite = true;
 end
 
@@ -166,12 +169,12 @@ try
     if launchTestSuite
         % save the userpath
         originalUserPath = path;
-
+        
         % run the tests in the subfolder verifiedTests/ recursively
         [result, resultTable] = runTestSuite();
 
         sumSkipped = sum(resultTable.Skipped);
-        sumFailed = sum(resultTable.Failed) - sumSkipped;
+        sumFailed = sum(resultTable.Failed);
 
         fprintf(['\n > ', num2str(sumFailed), ' tests failed. ', num2str(sumSkipped), ' tests were skipped due to missing requirements.\n\n']);
 

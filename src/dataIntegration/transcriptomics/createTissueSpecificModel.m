@@ -50,6 +50,8 @@ function [tissueModel] = createTissueSpecificModel(model, options, funcModel, ex
 %                                    the high confidence set (default - no core reactions)
 %       options.logfile*             name of the file to save the MILP log (defaut - 'MILPlog')
 %       options.runtime*             maximum solve time for the MILP (default - 7200s)
+%       options.epsilon*             small value to consider when modeling
+%                                    flux (default 1)
 %
 %   for GIMME
 %       options.expressionRxns       reaction expression, expression data corresponding to model.rxns.
@@ -67,6 +69,8 @@ function [tissueModel] = createTissueSpecificModel(model, options, funcModel, ex
 %                                    (default  - 1e-8)
 %   	options.logfile*             name of the file to save the MILP log (defaut - 'MILPlog')
 %       options.runtime*             maximum solve time for the MILP (default - 7200s)
+%       options.epsilon*             small value to consider when modeling
+%                                    flux (default 1)
 %
 %   for MBA
 %       options.medium_set           list of reaction names with medium confidence
@@ -169,7 +173,7 @@ else
                 error('The required option field "core" is not defined for fastCore method')                
             end
             if ~isfield(options,'epsilon'),options.epsilon=1e-4;end
-            if ~isfield(options,'printlevel'),options.printlevel=0;end
+            if ~isfield(options,'printLevel'),options.printLevel=0;end
     end
 end
 
@@ -192,7 +196,7 @@ switch options.solver
     case 'mCADRE'
         tissueModel = mCADRE(model, options.ubiquityScore, options.confidenceScores, options.protectedRxns, options.checkFunctionality, options.eta, options.tol);
     case 'fastCore'
-        tissueModel = fastcore(model, options.core, options.epsilon, options.printlevel);
+        tissueModel = fastcore(model, options.core, options.epsilon, options.printLevel);
 end
 
 

@@ -214,7 +214,7 @@ solverInstalled = false;
 
 if isempty(SOLVERS) || isempty(OPT_PROB_TYPES)
     ENV_VARS.printLevel = false;
-    initCobraToolbox;
+    initCobraToolbox(false); %Don't update the toolbox automatically
     ENV_VARS.printLevel = true;
 end
 
@@ -246,7 +246,7 @@ if nargin < 1
 end
 
 % legacy support for other versions of gurobi
-if strcmpi(solverName, 'gurobi') || strcmpi(solverName, 'gurobi6') ||  strcmpi(solverName, 'gurobi7')
+if strcmpi(solverName, 'gurobi6') || strcmpi(solverName, 'gurobi7')
     solverName = 'gurobi';
 end
 
@@ -379,7 +379,7 @@ end
 
 % add the pdco submodule path (especially important if TOMLAB_PATH is set)
 if ~isempty(strfind(solverName, 'pdco'))
-    PDCO_PATH = [CBTDIR filesep 'external' filesep 'pdco'];
+    PDCO_PATH = [CBTDIR filesep 'external' filesep 'base' filesep 'solvers' filesep 'pdco'];
     addSolverDir(PDCO_PATH, printLevel, 'pdco', 'PDCO_PATH', PDCO_PATH, true);
 end
 
@@ -431,6 +431,7 @@ if compatibleStatus == 1 || compatibleStatus == 2
         case {'lp_solve', 'qpng', 'pdco', 'gurobi_mex'}
             solverOK = checkSolverInstallationFile(solverName, solverName, printLevel);
         case 'gurobi'
+
             solverOK = checkSolverInstallationFile(solverName, 'gurobi.m', printLevel);
         case {'quadMinos', 'dqqMinos'}
             [stat, res] = system('which csh');
@@ -446,6 +447,7 @@ if compatibleStatus == 1 || compatibleStatus == 2
                     error(['You must have `csh` installed in order to use `', solverName, '`.']);
                 end
             end
+        %{
         case 'opti'
             optiSolvers = {'CLP', 'CSDP', 'DSDP', 'OOQP', 'SCIP'};
             if ~isempty(which('checkSolver'))
@@ -456,6 +458,7 @@ if compatibleStatus == 1 || compatibleStatus == 2
                     return;
                 end
             end
+        %}
         case 'matlab'
             v = ver;
             %Both linprog and fmincon are part of the optimization toolbox.
@@ -468,23 +471,26 @@ end
 % set solver related global variables (only for actively maintained solver interfaces)
 if solverOK
     solverInstalled = true;
-    if strcmpi(SOLVERS.(solverName).categ, 'active')
-        if validationLevel > 0
-            cwarn = warning;
-            warning('off');
-            eval(['oldval = CBT_', solverType, '_SOLVER;']);
-            eval(['CBT_', solverType, '_SOLVER = solverName;']);
-            Problem = struct('A',[0 1],'b',0,'c',[1;1],'osense',-1,'F',speye(2),'lb',[0;0],'ub',[0;0],'csense','E','vartype',['C';'I'],'x0',[0;0]);
-            try
-                eval(['solveCobra' solverType '(Problem,''printLevel'', 0);']);
-            catch ME
-                solverOK = false;
-                eval(['CBT_', solverType, '_SOLVER = oldval;']);
+    if validationLevel > 0
+        cwarn = warning;
+        warning('off');
+        eval(['oldval = CBT_', solverType, '_SOLVER;']);
+        eval(['CBT_', solverType, '_SOLVER = solverName;']);
+        % validate with a simple problem.
+        problem = struct('A',[0 1],'b',0,'c',[1;1],'osense',-1,'F',speye(2),'lb',[0;0],'ub',[0;0],'csense','E','vartype',['C';'I'],'x0',[0;0]);
+        try
+            eval(['solveCobra' solverType '(problem,''printLevel'',0);']);            
+        catch ME
+            if printLevel > 0
+                disp(ME.message);
             end
-            warning(cwarn)
-        else
-            eval(['CBT_', solverType, '_SOLVER = solverName;']);
+            solverOK = false;
+            eval(['CBT_', solverType, '_SOLVER = oldval;']);
         end
+        warning(cwarn)
+    else
+        % if unvalidated, simply set the solver without testing.
+        eval(['CBT_', solverType, '_SOLVER = solverName;']);
     end
 end
 end

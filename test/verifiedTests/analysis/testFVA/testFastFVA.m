@@ -8,7 +8,6 @@
 %     - Vmin, Vmax test: Marouen Ben Guebila 24/02/17
 %
 
-global CBTDIR
 global ILOG_CPLEX_PATH
 
 %Test requirements
@@ -26,37 +25,50 @@ objective = 'max';
 % set the tolerance
 tol = 1e-6;
 
-% Define the number of workers to be used
-nworkers = 2;
-
 % Define the solverName
 solverName = 'ibm_cplex';
 
 % load the E.coli model
 model = getDistributedModel('ecoli_core_model.mat');
 
+% Define the number of workers to be used
+nworkers = 2;
+
 if changeCobraSolver(solverName, 'LP', 0)
 
-    if isempty(strfind(ILOG_CPLEX_PATH, '1271'))
+    if isempty(strfind(ILOG_CPLEX_PATH, '1271')) || isempty(strfind(ILOG_CPLEX_PATH, '128'))
         generateMexFastFVA;
     end
 
-    [minFluxSerial, maxFluxSerial] = fastFVA(model, optPercentage, [], solverName, model.rxns(1:2));
+    [minFluxSerial, maxFluxSerial, optsolSerial, retSerial, fbasolSerial, ...
+        fvaminSerial, fvamaxSerial, statussolminSerial, statussolmaxSerial] = fastFVA(model, optPercentage, [], solverName, model.rxns(1:2));
 
     % Start a parpool environment in MATLAB
     setWorkerCount(nworkers);
 
-    [minFluxParallel, maxFluxParallel] = fastFVA(model, optPercentage, [], solverName, model.rxns(1:2));
+    [minFluxParallel, maxFluxParallel, optsolParallel, retParallel, fbasolParallel, ...
+        ~, ~, statussolminParallel, statussolmaxParallel] = fastFVA(model, optPercentage, [], solverName, model.rxns(1:2));
 
     assert(norm(minFluxSerial - minFluxParallel) < tol);
     assert(norm(maxFluxSerial - maxFluxParallel) < tol);
+    assert(norm(optsolSerial - optsolParallel) < tol);
+    assert(norm(retSerial - retParallel) < tol);
+    assert(norm(fbasolSerial - fbasolParallel) < tol);
+    assert(norm(fvaminSerial) > 0);
+    assert(norm(fvamaxSerial) > 0);
+    assert(norm(statussolminSerial - statussolminParallel) < tol);
+    assert(norm(statussolmaxSerial - statussolmaxParallel) < tol);
 
     % Print out the header of the script
     fprintf('\n Toy Example: Flux ranges for a mutant with reaction v6 knocked out\n');
-
+    
+    % generate a new model.
+    model = createModel();
+    model = addMultipleMetabolites(model,strcat('M',cellfun(@num2str, num2cell(1:7),'Uniform',0)));
     % Stoichiometric matrix
     % (adapted from Papin et al. Genome Res. 2002 12: 1889-1900.)
-    model.S = [
+    
+    S = [
         %	 v1 v2 v3 v4 v5 v6 b1 b2 b3
         -1,  0,  0,  0,  0,  0,  1,  0,  0;  % A
          1, -2, -2,  0,  0,  0,  0,  0,  0;  % B
@@ -69,15 +81,14 @@ if changeCobraSolver(solverName, 'LP', 0)
 
     % Flux limits
     %           v1   v2   v3   v4   v5   v6   b1    b2   b3
-    model.lb = [0,   0,   0,   0,   0,   0,   0,   0,   0]';  % Irreversibility
-    model.ub = [inf, inf, inf, inf, inf, inf,  10, inf, inf]';  % b1 represents the "substrate"
+    lb = [0,   0,   0,   0,   0,   0,   0,   0,   0]';  % Irreversibility
+    ub = [inf, inf, inf, inf, inf, inf,  10, inf, inf]';  % b1 represents the "substrate"
 
     % b2 represents the "growth"
-    model.c = [0 0 0 0 0 0 0 1 0]';
-    model.b = zeros(size(model.S, 1), 1);
+    c = [0 0 0 0 0 0 0 1 0]';    
 
-    model.rxns = {'v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'b1', 'b2', 'b3'};
-
+    rxns = {'v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'b1', 'b2', 'b3'}';
+    model = addMultipleReactions(model,rxns,model.mets,S,'c',c,'lb',lb,'ub',ub);
     optPercentage = 100;  % FVA based on maximum growth
 
     model.lb(6) = 0;
