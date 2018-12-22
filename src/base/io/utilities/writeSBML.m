@@ -112,10 +112,14 @@ for i = 1:size(unit_kinds, 2)
 end
 
 if isfield(model,'modelName')
-    sbmlModel.name = model.modelName;
-    sbmlModel.id = ['M_' convertSBMLID(model.modelName)];
+    sbmlModel.name = model.modelName;    
 else
-    sbmlModel.name = 'Model Exported from COBRA Toolbox';
+    sbmlModel.name = 'Model Exported from COBRA Toolbox';    
+end
+
+if isfield(model,'modelID')
+    sbmlModel.id = ['M_' convertSBMLID(model.modelID)];
+else
     sbmlModel.id = 'COBRAModel';
 end
 
@@ -156,17 +160,39 @@ for i=1:size(model.mets, 1)
     else
         tmp_metName=emptyChar;
     end
+    % create annotations and notes
+    tmp_species.metaid=tmp_species.id;  % set the metaid for each species
+    [tmp_annot,met_notes] = makeSBMLAnnotationString(model,tmp_species.metaid,'met',i);
+
     
     if isfield(model, 'metFormulas')
-        tmp_metFormulas = model.metFormulas{i};
+        % check the chemical formula
+        tmp_metFormulas = model.metFormulas{i};        
+        if ~isempty(model.metFormulas{i})
+            coefs = regexp(model.metFormulas{i},'(?<nums>[\.0-9]+)','names');
+            intVals = cellfun(@(x) mod(str2double(x),1) == 0,{coefs.nums});
+            if any(~intVals)
+                warning('Metabolite %s has formula %s. FBC 2.1 only allows integer values for coefficients.\nDiscarding the formula.',model.mets{i},model.metFormulas{i});
+                met_notes(end+1,1:2) = {'FORMULA',tmp_metFormulas};
+                tmp_metFormulas = emptyChar;                
+            end
+        end
+        
     else
         tmp_metFormulas=emptyChar; %cell(0,1)% {''};%0;%emptyChar;
     end
     
     if isfield(model, 'metCharges')
         if ~isnan(model.metCharges(i))
-            tmp_metCharge=model.metCharges(i);
-            tmp_isSetfbc_charge=1;
+            if mod(model.metCharges(i),1) ~= 0
+                warning('Metabolite %s has a charge of %f. FBC 2.1 only allows integer values for charges.\nDiscarding the value.',model.mets{i},model.metCharges(i));
+                met_notes(end+1,1:2) = {'CHARGE',num2str(model.metCharges(i))};
+                tmp_metCharge=0;
+                tmp_isSetfbc_charge=0;
+            else
+                tmp_metCharge=model.metCharges(i);
+                tmp_isSetfbc_charge=1;
+            end
         else
             tmp_metCharge=0;
             tmp_isSetfbc_charge=0;
@@ -199,13 +225,11 @@ for i=1:size(model.mets, 1)
     tmp_species.fbc_chemicalFormula=tmp_metFormulas;
     tmp_species.isSetfbc_charge=tmp_isSetfbc_charge;
     %% Add annotations for metaoblites to the reconstruction
-    tmp_species.metaid=tmp_species.id;  % set the metaid for each species
-    [tmp_annot,met_notes] = makeSBMLAnnotationString(model,tmp_species.metaid,'met',i);
     
     tmp_note = emptyChar;
     if ~isempty(met_notes)
         for noteid = 1:size(met_notes,1)
-            tmp_note = [ tmp_note ' <p>' regexprep(met_notes{noteid,1},'^rxn','') ':' met_notes{noteid,2} '</p>'];
+            tmp_note = [ tmp_note ' <p>' regexprep(met_notes{noteid,1},'^met','') ':' met_notes{noteid,2} '</p>'];
         end
     end
     if isfield(model,'metNotes')
@@ -528,51 +552,55 @@ end
 
 %% Set the objective sense of the FBC objective according to the osenseStr in
 %the model.
-objectiveSense = 'maximize';
-
-if isfield(model,'osenseStr') && strcmpi(model.osenseStr,'min')
-    objectiveSense = 'minimize';
-end
-
-tmp_fbc_objective=getSBMLDefaultStruct('SBML_FBC_OBJECTIVE',sbmlLevel, sbmlVersion,sbmlPackages, sbmlPackageVersions);
-tmp_fbc_objective.fbc_id = 'obj';
-tmp_fbc_objective.fbc_type = objectiveSense;
-sbmlModel.fbc_activeObjective = 'obj';
-
-tmp_fbc_objective.fbc_fluxObjective=getSBMLDefaultStruct('SBML_FBC_FLUXOBJECTIVE',sbmlLevel, sbmlVersion,sbmlPackages, sbmlPackageVersions);
-
 %%%%% multiple objectives
 if ~isnumeric(model.c)
     model.c=double(cell2mat(model.c)); % convert the variable type to double
 end
-% check=~isempty(model.c(model.c~=0)) the following block is necessry for
-% libSBML library 5.11
-% % % % % % % if isempty(model.c(model.c~=0)) % if no objective function is defined, the first reaction is set as the objective function.
-% % % % % % %     model.c(1)=1;
-% % % % % % % end
-%if ~isempty(model.c(model.c~=0))
-% Construct a default structure of objective reactions and set intial values.
-%     fbc_objective.fbc_fluxObjective=fbc_fluxObjective;
-ind=find(model.c); % Find the index numbers for the objective reactions
-% The fields of a COBRA model are converted into respective fields of a FBCv2 structure.
-if isempty(ind)
-    tmp_fbc_objective.fbc_fluxObjective.fbc_coefficient=0; % no objective function is set
-    sbmlModel.fbc_objective=tmp_fbc_objective;
-else
-    for i=1:length(ind)
-        %     model.c(ind(i));
-        values=model.c(model.c~=0);
-        tmp_fbc_objective.fbc_fluxObjective.fbc_reaction=sbmlModel.reaction(ind(i)).id; % the reaction.id contains the  % model.rxns{ind(i)};
-        tmp_fbc_objective.fbc_fluxObjective.fbc_coefficient=values(i);
-        tmp_fbc_objective.fbc_fluxObjective.isSetfbc_coefficient=1;
-        if i==1
-            sbmlModel.fbc_objective=tmp_fbc_objective;
-        else
-            sbmlModel.fbc_objective.fbc_fluxObjective=[sbmlModel.fbc_objective.fbc_fluxObjective,tmp_fbc_objective.fbc_fluxObjective];
+if ~all(model.c == 0)
+    
+    
+    objectiveSense = 'maximize';
+    
+    if isfield(model,'osenseStr') && strcmpi(model.osenseStr,'min')
+        objectiveSense = 'minimize';
+    end
+    
+    tmp_fbc_objective=getSBMLDefaultStruct('SBML_FBC_OBJECTIVE',sbmlLevel, sbmlVersion,sbmlPackages, sbmlPackageVersions);
+    tmp_fbc_objective.fbc_id = 'obj';
+    tmp_fbc_objective.fbc_type = objectiveSense;
+    sbmlModel.fbc_activeObjective = 'obj';
+    
+    tmp_fbc_objective.fbc_fluxObjective=getSBMLDefaultStruct('SBML_FBC_FLUXOBJECTIVE',sbmlLevel, sbmlVersion,sbmlPackages, sbmlPackageVersions);
+    
+    
+    % check=~isempty(model.c(model.c~=0)) the following block is necessry for
+    % libSBML library 5.11
+    % % % % % % % if isempty(model.c(model.c~=0)) % if no objective function is defined, the first reaction is set as the objective function.
+    % % % % % % %     model.c(1)=1;
+    % % % % % % % end
+    %if ~isempty(model.c(model.c~=0))
+    % Construct a default structure of objective reactions and set intial values.
+    %     fbc_objective.fbc_fluxObjective=fbc_fluxObjective;
+    ind=find(model.c); % Find the index numbers for the objective reactions
+    % The fields of a COBRA model are converted into respective fields of a FBCv2 structure.
+    if isempty(ind)
+        tmp_fbc_objective.fbc_fluxObjective.fbc_coefficient=0; % no objective function is set
+        sbmlModel.fbc_objective=tmp_fbc_objective;
+    else
+        for i=1:length(ind)
+            %     model.c(ind(i));
+            values=model.c(model.c~=0);
+            tmp_fbc_objective.fbc_fluxObjective.fbc_reaction=sbmlModel.reaction(ind(i)).id; % the reaction.id contains the  % model.rxns{ind(i)};
+            tmp_fbc_objective.fbc_fluxObjective.fbc_coefficient=values(i);
+            tmp_fbc_objective.fbc_fluxObjective.isSetfbc_coefficient=1;
+            if i==1
+                sbmlModel.fbc_objective=tmp_fbc_objective;
+            else
+                sbmlModel.fbc_objective.fbc_fluxObjective=[sbmlModel.fbc_objective.fbc_fluxObjective,tmp_fbc_objective.fbc_fluxObjective];
+            end
         end
     end
 end
-
 
 
 

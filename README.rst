@@ -15,9 +15,9 @@ The COBRA Toolbox |br| COnstraint-Based Reconstruction and Analysis Toolbox
      <td><div align="center"><a href="https://opencobra.github.io/cobratoolbox/latest/tutorials/index.html"><img src="https://img.shields.io/badge/COBRA-tutorials-blue.svg?maxAge=0"></a>
        <a href="https://opencobra.github.io/cobratoolbox/latest"><img src="https://img.shields.io/badge/COBRA-docs-blue.svg?maxAge=0"></a>
        <a href="https://groups.google.com/forum/#!forum/cobra-toolbox"><img src="https://img.shields.io/badge/COBRA-forum-blue.svg?maxAge=0"></a></div></td>
-       <td><div align="center"><a href="https://prince.lcsb.uni.lu/jenkins/job/COBRAToolbox-branches-auto-linux/"><img src="https://prince.lcsb.uni.lu/badges/linux.svg"></a>
-       <a href="https://prince.lcsb.uni.lu/jenkins/job/COBRAToolbox-branches-auto-macOS/"><img src="https://prince.lcsb.uni.lu/badges/macOS.svg"></a>
-       <a href="https://prince.lcsb.uni.lu/jenkins/job/COBRAToolbox-branches-auto-windows7/"><img src="https://prince.lcsb.uni.lu/badges/windows.svg"></a>
+       <td><div align="center"><a href="https://prince.lcsb.uni.lu/jenkins/job/COBRAToolbox-branches-auto-linux/"><img src="https://prince.lcsb.uni.lu/badges/linux-cobratoolbox.svg"></a>
+       <a href="https://prince.lcsb.uni.lu/jenkins/job/COBRAToolbox-branches-auto-macOS/"><img src="https://prince.lcsb.uni.lu/badges/macOS-cobratoolbox.svg"></a>
+       <a href="https://prince.lcsb.uni.lu/jenkins/job/COBRAToolbox-branches-auto-windows7/"><img src="https://prince.lcsb.uni.lu/badges/windows-cobratoolbox.svg"></a>
        <a href="http://opencobra.github.io/cobratoolbox/docs/builds.html"><img src="http://concordion.org/img/benefit-links.png?maxAge=0" height="20px" alt="All continuous integration builds"></a>
        </div></td>
        <td><div align="center"><img src="https://prince.lcsb.uni.lu/badges/codegrade.svg" alt="Ratio of the number of inefficient code lines and the total number of lines of code (in percent). A: 0-3%, B: 3-6%, C: 6-9%, D: 9-12%, E: 12-15%, F: > 15%.">
@@ -55,7 +55,7 @@ Installation
 
    |warning| Please note the ``--depth=1`` in the clone command. Run this command in ``Terminal`` (on |macos| and |linux|) or in ``Git Bash`` (on |windows|) -
    **not** in |matlab|. Although not recommended, you can download the
-   repository as a `compressed archive <https://github.com/opencobra/cobratoolbox/archive/master.zip>`__.
+   repository as a `compressed archive <https://prince.lcsb.uni.lu/releases/theCOBRAToolbox.zip>`__.
 
 2. Change to the folder ``cobratoolbox/`` and run from |matlab|
 
@@ -93,7 +93,7 @@ Toolbox <https://github.com/opencobra/cobratoolbox>`__! |tada| |thumbsup|
 .. raw:: html
 
    <p align="center">
-   <img src="https://cdn.rawgit.com/opencobra/MATLAB.devTools/develop/docs/source/_static/img/logo_devTools.png" height="120px" alt="devTools"/>
+   <img src="https://cdn.jsdelivr.net/gh/opencobra/MATLAB.devTools@e735bd91310e8ef10fab4d3c21833a85bf4b8159/docs/source/_static/img/logo_devTools.png" height="120px" alt="devTools"/>
    </p>
 
 
@@ -186,7 +186,7 @@ implemented in The COBRA Toolbox v3.0 [2], was employed.*
     A. Saunders, Costas D. Maranas, Nathan E. Lewis, Thomas Sauter,
     Bernhard Ø. Palsson, Ines Thiele, Ronan M.T. Fleming, **Creation and
     analysis of biochemical constraint-based models: the COBRA Toolbox
-    v3.0** (submitted), 2017,
+    v3.0**, accepted in Nature Protocols, 2018,
     `arXiv:1710.04038 <https://arxiv.org/abs/1710.04038>`__.
 
 .. end-how-to-cite-marker
@@ -194,15 +194,15 @@ implemented in The COBRA Toolbox v3.0 [2], was employed.*
 Binaries and Compatibility
 --------------------------
 
-.. begin-binaries-marker
-
 |warning| Please make sure you install a compatible solver. Check the
 compatibility
 `here <https://opencobra.github.io/cobratoolbox/docs/compatibility.html>`__.
 
+.. begin-binaries-marker
+
 For convenience, we provide
 `glpk_mex <https://github.com/blegat/glpkmex>`__ and
-`libSBML-5.15+ <http://sbml.org/Software/libSBML>`__ in
+`libSBML-5.17+ <http://sbml.org/Software/libSBML>`__ in
 ``/external``.
 
 `Binaries <https://github.com/opencobra/COBRA.binary>`__ for these
@@ -211,7 +211,7 @@ libraries are provided in a submodule for Mac OS X 10.6 or later
 (64-bit). For unsupported OS, please refer to their respective building
 instructions
 (`glpk_mex <https://github.com/blegat/glpkmex#instructions-for-compiling-from-source>`__,
-`libSBML <http://sbml.org/Software/libSBML/5.13.0/docs//cpp-api/libsbml-installation.html>`__).
+`libSBML <http://sbml.org/Software/libSBML/5.17.0/docs//cpp-api/libsbml-installation.html>`__).
 
 Read more on the compatibility with SBML-FBCv2
 `here <https://opencobra.github.io/cobratoolbox/docs/notes.html>`__.

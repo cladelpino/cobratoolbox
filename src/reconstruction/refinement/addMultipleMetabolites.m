@@ -12,7 +12,7 @@ function newmodel = addMultipleMetabolites(model, metIDs, varargin)
 %
 % OPTIONAL INPUTS:
 %    varargin:      fieldName, Value pairs with additional properties for the
-%                   added metabolites.  
+%                   added metabolites. In addition, a 'printLevel' flag can be used (default: 0). 
 %                   The given values fields will be set according to the values. 
 %                   Only fields associated with mets defined in the COBRA definitions (except `S`) 
 %                   or fields already in the model may be used.  
@@ -31,10 +31,22 @@ function newmodel = addMultipleMetabolites(model, metIDs, varargin)
 %    model = addMultipleMetabolites(model,{'A','b','c'},'metCharges', [ -1 1 0], 'metFormulas', {'C','CO2','H2OKOPF'}, 'metKEGGID',{'C000012','C000023','C000055'})
 %    
 
-if (any(ismember(model.mets,metIDs)) || numel(unique(metIDs)) < numel(metIDs))
-    %Check, if there are either duplicate metabolite IDS to be added OR if
-    %any metabolite is already in the model.
-    error('Duplicate Metabolite ID detected.');
+if numel(unique(metIDs)) < numel(metIDs)
+    % check, if there are either duplicate metabolite IDS to be added OR if
+    % any metabolite is already in the model.
+    error('Duplicate Metabolite ID in the given IDs detected.');
+end
+
+if checkIDsForTypeExist(model,metIDs,'mets')
+    % check, if there are either duplicate metabolite IDS to be added OR if
+    % any metabolite is already in the model.
+    [tf,dups] = checkIDsForTypeExist(model,metIDs,'mets');    
+    if any(ismember(model.mets,dups))
+        pres = ismember(model.mets,dups);        
+        error('The following Metabolite ID(s) are already present in the model:\n%s',strjoin(model.mets(pres),'\n'));
+    else
+        error('The following Metabolite ID(s) are already present Ids of constraints in the model:\n%s',strjoin(dups,'\n'));
+    end
 end
 
 nMets = numel(model.mets);
@@ -46,8 +58,21 @@ fieldDefs = getDefinedFieldProperties();
 fieldDefs = fieldDefs(cellfun(@(x) strcmp(x,'mets'), fieldDefs(:,2)) | cellfun(@(x) strcmp(x,'mets'), fieldDefs(:,3)));
 modelMetFields = getModelFieldsForType(model,'mets');
 
+% extract additional parameters which are not fields (currently only
+% printLevel
+printLevel = 0;
+
+for parameter = 1:2:numel(varargin)
+    if strcmp(varargin{parameter},'printLevel')
+        printLevel = varargin{parameter+1};
+    end
+end    
+
 %Then we add the ids.
 model.mets = [model.mets;columnVector(metIDs)];
+if printLevel > 0
+    fprintf('Adding the following Metabolites to the model:\n%s\n',strjoin(metIDs,'\n'));
+end
 
 %Now, add the the data from the additional supplied fields, and check that
 %they are in sync
@@ -56,13 +81,18 @@ for field = 1:2:numel(varargin)
     %information, as we don't know how the field should look.
     cfield = varargin{field};
     if strcmp('S',cfield) || (~any(ismember(fieldDefs(:,1),cfield)) && ~any(ismember(modelMetFields,cfield)))
-        warning('Field %s is excluded',cfield);
+        if printLevel > 0 && ~strcmp('printLevel',cfield)
+            warning('Field %s is excluded',cfield);
+        end
         continue;
     end
     %Now add the field data. 
     if ~isfield(model,cfield)
         %If its not yet in the model, create it
         %according to its defaults and replace the final elements.
+        if printLevel > 2
+            fprintf('Creating model field %s\n',cfield);
+        end
         model = createEmptyFields(model,cfield);    
         model.(cfield)((end-numel(varargin{field+1})+1):end) = columnVector(varargin{field+1});    
     else
