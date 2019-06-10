@@ -426,15 +426,19 @@ else
     % print met fields
     printMetRxnInfo(id, metFields, 1, true, {'metNames'; 'metFormulas'});
     fprintf('\n');
-    
+     
     for jCP = 1:2
         if jCP == 1
             % print consuming reactions (taking into account of flux direction if given)
             r = find(modelLocal.S(id, :) .* direction < 0);
+            [~,I]=sort(abs(fluxLocal(r)),'descend');
+            r = r(I);
             fprintf('Consuming reactions%s:', nzFluxPrint);
         else
             % print producing reactions (taking into account of flux direction if given)
             r = find(modelLocal.S(id, :) .* direction > 0);
+            [~,I]=sort(abs(fluxLocal(r)),'descend');
+            r = r(I);
             fprintf('Producing reactions%s:', nzFluxPrint);
         end
         if isempty(r)
@@ -442,7 +446,7 @@ else
         else
             % print all connected reactions
             fprintf('\n');
-            p = printRxnFormula(modelLocal, modelLocal.rxns(r), 0, 1, 0);            
+            p = printRxnFormula(modelLocal, modelLocal.rxns(r), 0, 1, 0);
             for j = 1:numel(r)
                 % print reaction info
                 fprintf('  #%d  ', r(j));
