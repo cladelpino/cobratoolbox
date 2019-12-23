@@ -209,9 +209,14 @@ rxnpos = idList <= nRxns;
 varpos = idList > nRxns; 
     
 for i = 1:size(c,1)     
-    constRow(i,idList(rxnpos)) = c(i,rxnpos);         
+    %constRow(i,idList(rxnpos)) = c(i,rxnpos);
+    myList = idList(rxnpos);
+    myC = c(rxnpos);
+    constRow(i,myList(i,:)) = myC(i,:);
     if varspresent
-         mixrows(i,idList(varpos)-nRxns) = c(i,varpos);
+         myList = idList(varpos);
+         myC = c(varpos);
+         mixrows(i,myList(i,:)-nRxns) = myC(i,:);
     end    
     cRow = constRow(i,:);    
     if checkDuplicate

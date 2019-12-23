@@ -1,6 +1,6 @@
-function [model, rxnsInModel] = addSinkReactions(model, metabolites, lb, ub)
+function [model, rxnsInModel, rxnName] = addSinkReactions(model, metabolites, lb, ub)
 % Adds a sink reaction for the list of metabolites
-%
+%   
 % USAGE:
 %
 %    [model] = addSinkReactions(model, metabolites, lb, ub)
@@ -20,16 +20,28 @@ function [model, rxnsInModel] = addSinkReactions(model, metabolites, lb, ub)
 %                    an identical reaction already present in the model
 %
 % .. Author: - Ines Thiele 05/06/08
+   %         - Claudio Delpino 07/02/19: Modified to use
+   %         addMultipleReactions
 
 if ~iscell(metabolites) & ischar(metabolites)
     % assumes it is a single metabolite in a char vector
-    metabolites = {metabolites}
+    metabolites = {metabolites};
 end
 if any(~ismember(metabolites,model.mets))
     notFound = metabolites(~ismember(metabolites,model.mets)); 
     warning('%s\n','The following metabolites were not found in model and will be added:',notFound{:});
 end
 
+rxnsInModel = NaN(size(metabolites));
+origMetaboList = metabolites;
+% Which metabolites already have a sink reaction ?
+% Assumes all single metabolite reactions are sink with a coeff of -1
+%rxnIsSink = sum(model.S ~= 0) == 1;
+%metHasSink = sum(model.S(:,rxnIsSink),2)<0;
+%isLeftOutMet = ismember(metabolites,model.mets) & metHasSink;
+%for i = find(isLeftOutMet)'
+%   rxnsInModel(strcmp(model.mets{i},metabolites)) = find(model.S(i,:)~=0 & rxnIsSink);
+%end
 
 nMets = length(metabolites);
 if nargin < 3
@@ -42,12 +54,11 @@ if size(lb,2)==2
     lb = lb(:,1);
 end
 
-rxnsInModel=-ones(length(metabolites),1);
-for i = 1 : nMets
-    rxnName = strcat('sink_',metabolites{i});
-    [model,rxnIDs] = addReaction(model,rxnName,metabolites(i),-1,1,lb(i),ub(i),0,'Sink', '', [], [], 0); % ignore duplicates
-    if ~isempty(rxnIDs)
-       rxnsInModel(i)=rxnIDs;
-    end
-    model.rxnNames(strcmp(model.rxns,rxnName)) = {rxnName};
+rxnName = strcat('sink_',metabolites);
+k = length(model.rxns) + 1;
+model = addMultipleReactions(model,rxnName,metabolites,-eye(nMets),'lb',lb,'ub',ub);
+for e = metabolites'
+    rxnsInModel(strcmp(e,origMetaboList))=k;
+    k = k+1;
+end
 end
