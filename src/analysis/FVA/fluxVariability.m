@@ -4,7 +4,7 @@ function [minFlux, maxFlux, Vmin, Vmax] = fluxVariability(model, varargin)
 % USAGE:
 %
 %    [minFlux, maxFlux] = fluxVariability(model, optPercentage, osenseStr, rxnNameList, printLevel, allowLoops)
-%    [minFlux, maxFlux, Vmin, Vmax] = fluxVariability(model, optPercentage, osenseStr, rxnNameList, printLevel, allowLoops, method, solverParams, advind, threads, heuristics)
+%    [minFlux, maxFlux, Vmin, Vmax] = fluxVariability(model, optPercentage, osenseStr, rxnNameList, printLevel, allowLoops, method, solverParams, advind, threads, heuristics, useMtFVA)
 %    [...] = fluxVariability(model, ..., 'name', value, ..., solverParams)
 %    [...] = fluxVariability(model, ..., paramStruct)
 %
@@ -24,10 +24,10 @@ function [minFlux, maxFlux, Vmin, Vmax] = fluxVariability(model, varargin)
 %
 %                        * 1 (or true) : loops allowed (default)
 %                        * 0 (or false): loops not allowed. Use LLC-NS to find loopless solutions
-%                        * 'original'  : original loopless FVA 
+%                        * 'original'  : original loopless FVA
 %                        * 'fastSNP'   : loopless FVA with with Fast-SNP preprocessing of nullspace
 %                        * 'LLC-NS'    : localized loopless FVA using information from nullsapce
-%                        * 'LLC-EFM'   : localized loopless FVA using information from EFMs. 
+%                        * 'LLC-EFM'   : localized loopless FVA using information from EFMs.
 %                                        Require CalculateFluxModes.m from EFMtool to calculate EFMs.
 %    method:           when Vmin and Vmax are in the output, the flux vector can be (Default = 2-norm):
 %
@@ -37,7 +37,7 @@ function [minFlux, maxFlux, Vmin, Vmax] = fluxVariability(model, varargin)
 %                        * '2-norm' : minimizes the vector 2-norm
 %                        * 'minOrigSol' : minimizes the euclidean distance of each vector to the original solution vector
 %
-%    solverParams:     solver-specific parameter structure. Can also be inputted as the first or last arguement 
+%    solverParams:     solver-specific parameter structure. Can also be inputted as the first or last arguement
 %                      if using name-value argument inputs (with or without the keyword 'solverParams').
 %                      Can also be inputted as part of a parameter structure together with other function parameters
 %
@@ -51,10 +51,16 @@ function [minFlux, maxFlux, Vmin, Vmax] = fluxVariability(model, varargin)
 %                        * 0:            defaulted number of threads for the parallel computing toolbox
 %                        (default to be 1 if no parpool is activited, otherwise use the existing parpool)
 %
-%    heuristics:       level of heuristics to accelerate FVA. 
+%    heuristics:       level of heuristics to accelerate FVA.
 %                      0: no heuristics (default if rxnNameList has < 5 reactions)
 %                      1: solve max-sum-flux and min-sum-flux LPs to get reactions which already hit the bounds
 %                      2: solve additionally a single LP to find all blocked irreversible reactions (default if rxnNameList has >= 5 reactions)
+%
+%   useMtFVA:          run FVA multi-threaded via an external JVM with CPLEX as solver
+%                      does not return Vmin, Vmax; requires allowLoops = true and method = 'FBA'
+%
+%                           - 0 : default, do not use mtFVA
+%                           - 1 : use mtFVA
 %
 %    paramStruct:      one single parameter structure including any of the inputs above and the solver-specific parameter
 %
@@ -68,7 +74,7 @@ function [minFlux, maxFlux, Vmin, Vmax] = fluxVariability(model, varargin)
 %
 % EXAMPLES:
 %    FVA for all rxns at 100% max value of the objective function:
-%        [minFlux, maxFlux] = fluxVariability(model);  
+%        [minFlux, maxFlux] = fluxVariability(model);
 %    Loopless FVA for rxns in `rxnNames` at <= 90% min value of the objective function, print results for each reaction:
 %        [minFlux, maxFlux] = fluxVariability(model, 90, 'min', rxnNames, 2, 0);
 %    Same as the 1st example, but also return the corresponding flux distributions with 2-norm minimized:
@@ -76,7 +82,7 @@ function [minFlux, maxFlux, Vmin, Vmax] = fluxVariability(model, varargin)
 %    Name-value inputs, with Cobra LP parameter `feasTol` and solver-specific (gurobi) parameter `Presolve`:
 %        [minFlux, maxFlux] = fluxVariability(model, 'optPercentage', 99, 'allowLoops', 0, 'threads', 0, 'feasTol', 1e-8, struct('Presolve', 0));
 %    Single parameter structure input including function, Cobra LP and solver parameters:
-%        [minFlux, maxFlux] = fluxVariability(model, struct('optPercentage', 99, 'allowLoops', 'original', 'threads', 0, 'feasTol', 1e-8, 'Presolve', 0)); 
+%        [minFlux, maxFlux] = fluxVariability(model, struct('optPercentage', 99, 'allowLoops', 'original', 'threads', 0, 'feasTol', 1e-8, 'Presolve', 0));
 %
 % .. Authors:
 %       - Markus Herrgard  8/21/06 Original code.
@@ -88,8 +94,8 @@ function [minFlux, maxFlux, Vmin, Vmax] = fluxVariability(model, varargin)
 
 global CBT_LP_PARAMS
 
-optArgin = {     'optPercentage', 'osenseStr',              'rxnNameList', 'printLevel', 'allowLoops', 'method', 'solverParams', 'advind', 'threads', 'heuristics'}; 
-defaultValues = {100,             getObjectiveSense(model), model.rxns,    0,            true,         '2-norm', struct(),       0,       [],         []};
+optArgin = {     'optPercentage', 'osenseStr',              'rxnNameList', 'printLevel', 'allowLoops', 'method', 'solverParams', 'advind', 'threads', 'heuristics', 'useMtFVA'};
+defaultValues = {100,             getObjectiveSense(model), model.rxns,    0,            true,         '2-norm', struct(),       0,       [],         [],           0};
 validator = {@(x) isscalar(x) & isnumeric(x) & x >= 0 & x <= 100, ...  % optPercentage
     @(x) strcmp(x, 'max') | strcmp(x, 'min'), ...  % osenseStr
     @(x) ischar(x) | iscellstr(x), ...  % rxnNameList
@@ -100,7 +106,8 @@ validator = {@(x) isscalar(x) & isnumeric(x) & x >= 0 & x <= 100, ...  % optPerc
     @(x) true, ...  % advind
     @(x) isscalar(x) & (islogical(x) | isnumeric(x)), ...  % threads
     @(x) isscalar(x) & (islogical(x) | isnumeric(x)) ...  % heuristics
-    };  
+    @(x) isscalar(x) & (islogical(x) | isnumeric(x)) ...  % useMtFVA
+    };
 
 % get all potentially supplied COBRA parameter names
 problemTypes = {'LP', 'MILP', 'QP', 'MIQP'};
@@ -108,7 +115,8 @@ problemTypes = {'LP', 'MILP', 'QP', 'MIQP'};
 [funParams, cobraParams, solverVarargin] = parseCobraVarargin(varargin, optArgin, defaultValues, validator, problemTypes, 'solverParams', true);
 
 % solverParams not outputted as a function parameter since it is individually handled and embedded in solverVarargin
-[optPercentage, osenseStr, rxnNameList, printLevel, allowLoops, method, advind, threads, heuristics] = deal(funParams{:});
+[optPercentage, osenseStr, rxnNameList, printLevel, allowLoops, method, ...
+    advind, threads, heuristics, useMtFVA] = deal(funParams{:});
 
 allowLoopsError = false;
 loopMethod = '';
@@ -146,11 +154,8 @@ if any(~ismember(rxnNameList,model.rxns))
     error('There were reactions in the rxnList which are not part of the model:\n%s\n',strjoin(rxnNameList(~presence),'\n'));
 end
 
-if 0
-    %TODO not clear how this is supposed to work - Ronan
-    if useMtFVA && (nargout > 2 || ~allowLoops || ~strcmp(method,'FBA'))
-        error('mtFVA only supports the FBA method and neither supports loopless contraints nor Vmin/Vmax');
-    end
+if useMtFVA && (nargout > 2 || ~allowLoops || ~strcmp(method,'FBA'))
+    error('mtFVA only supports the FBA method and neither supports loopless contraints nor Vmin/Vmax');
 end
 % Set up the problem size
 [~, nRxns] = size(model.S);
@@ -160,7 +165,7 @@ end
 if exist('CBT_LP_PARAMS', 'var') && isfield(CBT_LP_PARAMS, 'objTol')
     tol = CBT_LP_PARAMS.objTol;
 end
-if nargout >= 3
+if nargout >= 3 && ~useMtFVA
     minNorm = 1;
 end
 
@@ -195,7 +200,7 @@ else
         switch loopMethod
             case 'original'
             % find the usual internal nullspace (Schellenberger et al., 2009)
-            fprintf('Use the original loop law\n');
+            fprintf('Use loop law MILP implementation by Schellenberger et al., 2009\n');
         case 'fastSNP'
             % find a minimal feasible nullspace Fast-SNP (Saa and Nielson, 2016)
             fprintf('Reduce complexity by nullspace preprocessing (Fast-SNP)\n')
@@ -206,7 +211,7 @@ else
         end
     end
     [MILPproblem, loopInfo] = addLoopLawConstraints(LPproblem, model, 1:nRxns, [], [], loopInfo);
-    
+
     if ~strncmp(loopMethod, 'LLC', 3)
         tempSolution = solveCobraMILP(MILPproblem, solverVarargin.MILP{:});
     else
@@ -233,7 +238,7 @@ end
 %set the objective
 if hasObjective
     LPproblem.A = [LPproblem.A; columnVector(LPproblem.c)'];
-    LPproblem.b = [LPproblem.b; objValue];    
+    LPproblem.b = [LPproblem.b; objValue];
     if strcmp(osenseStr, 'max')
         LPproblem.csense(end+1) = 'G';
     else
@@ -302,16 +307,27 @@ if minNorm
     [Vmax, Vmin] = deal(zeros(nRxns, numel(rxnNameList)));
 end
 
+% set the level of heuristics
 if isempty(heuristics)
     if numel(rxnNameList) >= 5
         heuristics = 2;
     else
         heuristics = 0;
     end
+    if printLevel > 0
+        fprintf(['> The level of heuristics has been set to ' num2str(heuristics) '.\n'])
+    end
 end
+
+% turn heuristics off for Mosek (don't solve the heuristic problem)
+if strcmp(cobraParams.LP.solver, 'mosek')
+    heuristics = 0;
+    warning([' > The level of heuristics has been set to 0 for the Mosek solver']);
+end
+
 % each cell in rxnNameList must be a reaction at this point, otherwise there would be error earlier
 Order = findRxnIDs(model, rxnNameList);
-if heuristics
+if heuristics > 0
     %We will calculate a min and max sum flux solution.
     %This solution will (hopefully) provide multiple solutions for individual
     %reactions.
@@ -348,7 +364,7 @@ if heuristics
                 quickSolultionFound = true;
             end
     end
-    
+
     % If we reach this point, we can be certain, that there is a solution, i.e.
     % if the stat is not 1, we have to check all reactions.
     if quickSolultionFound  % accept if there is a feasible solution for the MILP
@@ -380,7 +396,7 @@ if heuristics
                 quickSolultionFound = true;
             end
     end
-    
+
     if quickSolultionFound
         %Again obtain fluxes at their boundaries
         maxSolved = maxSolved | (model.ub(Order) == sol.full(Order));
@@ -441,7 +457,7 @@ if heuristics > 1
                         LPproblem = MILPproblem;
                     end
                 end
-                
+
                 [~, V] = calcSolForEntry(model, Order(find(rxnBlocked, 1)), LPproblem, method, allowLoopsI, minNorm, solverVarargin, sol, 1);
                 sol.fluxMinNorm = V;
             end
@@ -450,9 +466,27 @@ if heuristics > 1
              heuristicSolutions{5} = sol;
              [preCompMaxSols(rxnBlocked), preCompMinSols(rxnBlocked)] = deal(5);
         end
-       
+
         [minSolved, maxSolved] = deal(minSolved | rxnBlocked | rxnHitLB, maxSolved | rxnBlocked | rxnHitUB);
     end
+end
+
+if useMtFVA
+    for i = 1:length(rxnNameList)
+        % retrieve max/min values from heuristic solutions
+        if minSolved(i)
+            minFlux(i) = calcSolForEntry([], Order(i) ,LPproblem, method, allowLoops, minNorm, [], heuristicSolutions{preCompMinSols(i)}, 1);
+        end
+        if maxSolved(i)
+            maxFlux(i) = calcSolForEntry([], Order(i) ,LPproblem, method, allowLoops, minNorm, [], heuristicSolutions{preCompMaxSols(i)}, -1);
+        end
+    end
+    if any(~minSolved | ~maxSolved)
+        [fvalb, fvaub]= mtFVA(LPproblem, [columnVector(Order(~maxSolved)); columnVector(-Order(~minSolved))], solverVarargin.LP{1});
+        minFlux(~minSolved) = fvalb(Order(~minSolved));
+        maxFlux(~maxSolved) = fvaub(Order(~maxSolved));
+    end
+    return
 end
 
 if ~parallelJob  % single-thread FVA
@@ -461,16 +495,16 @@ if ~parallelJob  % single-thread FVA
     elseif printLevel > 1
         fprintf('%4s\t%4s\t%10s\t%9s\t%9s\n','No','Perc','Name','Min','Max');
     end
-    
+
     % Do this to keep the progress printing in place
     for i = 1:length(rxnNameList)
-        
+
         rxnID = findRxnIDs(model, rxnNameList(i));
         objVector = sparse(rxnID, 1, 1, nRxns, 1);
-        
+
         %Calc minimums
         allowLoopsI = allowLoops;
-        
+
         % For LLCs, solve LP if the problem constraints do not necessitate the
         % loop law and the target reaction has its reverse diretion in loops
         if (~minSolved(i) || minNorm) && strncmpi(loopMethod, 'LLC', 3)
@@ -483,17 +517,17 @@ if ~parallelJob  % single-thread FVA
                 LPproblem = MILPproblem;
             end
         end
-        
+
         [minFlux(i), V] = calcSolForEntry(model, rxnID ,LPproblem, method, allowLoopsI, minNorm, solverVarargin, heuristicSolutions{preCompMinSols(i)}, 1);
-        
+
         % store the flux distribution
         if minNorm
             Vmin(:, i) = V;
         end
-        
+
         %Calc maximums
         allowLoopsI = allowLoops;
-        
+
         % For LLCs, solve LP if the problem constraints do not necessitate the
         % loop law and the target reaction has its forward diretion in loops
         if (~maxSolved(i) || minNorm) && strncmpi(loopMethod, 'LLC', 3)
@@ -506,14 +540,14 @@ if ~parallelJob  % single-thread FVA
                 LPproblem = MILPproblem;
             end
         end
-        
+
         [maxFlux(i), V] = calcSolForEntry(model, rxnID ,LPproblem, method, allowLoopsI, minNorm, solverVarargin, heuristicSolutions{preCompMaxSols(i)}, -1);
-        
+
         % store the flux distribution
         if minNorm
             Vmax(:, i) = V;
         end
-        
+
         if printLevel == 1
             showprogress(i/length(rxnNameList));
         end
@@ -521,26 +555,26 @@ if ~parallelJob  % single-thread FVA
             fprintf('%4d\t%4.0f\t%10s\t%9.3f\t%9.3f\n',i,100*i/length(rxnNameList),rxnNameList{i},minFlux(i),maxFlux(i));
         end
     end
-    
+
 else % parallel job.  pretty much does the same thing.
     environment = getEnvironment();
-    
+
     if printLevel == 1
         fprintf('Parallel flux variability analysis in progress ...\n');
     elseif printLevel > 1
         fprintf('%4s\t%10s\t%9s\t%9s\n','No','Name','Min','Max');
     end
-    
+
     parfor i = 1:length(rxnNameList)
         restoreEnvironment(environment,0);
         parLPproblem = LPproblem;
-        
+
         rxnID = findRxnIDs(model, rxnNameList(i));
         objVector = sparse(rxnID, 1, 1, nRxns, 1);
-        
+
         %Calc minimums
         allowLoopsI = allowLoops;
-        
+
         % For LLCs, solve LP if the problem constraints do not necessitate the
         % loop law and the target reaction has its reverse diretion in loops
         if (~minSolved(i) || minNorm) && strncmpi(loopMethod, 'LLC', 3)
@@ -553,17 +587,17 @@ else % parallel job.  pretty much does the same thing.
                 parLPproblem = parMILPproblem;
             end
         end
-        
+
         [minFlux(i), V] = calcSolForEntry(model, rxnID ,parLPproblem, method, allowLoopsI, minNorm, solverVarargin, heuristicSolutions{preCompMinSols(i)}, 1);
-        
+
         % store the flux distribution
         if minNorm
             Vmin(:, i) = V;
         end
-        
+
         %Calc maximums
         allowLoopsI = allowLoops;
-        
+
         % For LLCs, solve LP if the problem constraints do not necessitate the
         % loop law and the target reaction has its forward diretion in loops
         if (~maxSolved(i) || minNorm) && strncmpi(loopMethod, 'LLC', 3)
@@ -576,14 +610,14 @@ else % parallel job.  pretty much does the same thing.
                 parLPproblem = parMILPproblem;
             end
         end
-        
+
         [maxFlux(i), V] = calcSolForEntry(model, rxnID ,parLPproblem, method, allowLoopsI, minNorm, solverVarargin, heuristicSolutions{preCompMaxSols(i)}, -1);
-        
+
         % store the flux distribution
         if minNorm
             Vmax(:, i) = V;
         end
-        
+
         if printLevel > 1
             fprintf('%4d\t%10s\t%9.3f\t%9.3f\n', i, rxnNameList{i}, minFlux(i), maxFlux(i));
         end
@@ -608,7 +642,7 @@ if isempty(sol)
         % solve MILP
         LPsolution = solveCobraMILP(LPproblem, solverVarargin.MILP{:});
     end
-    
+
     % take the maximum flux from the flux vector, not from the obj -Ronan
     % A solution is possible, so the only problem should be if its
     % unbounded and if it is unbounded, the max flux is infinity.
@@ -626,7 +660,7 @@ else
     Flux = sol.full(rxnID);
     if minNorm
         LPsolution = sol;
-    end    
+    end
 end
 
 V = [];
@@ -735,7 +769,7 @@ switch method
         warning('method ''minOrigSol'' not supported with ''allowLoops'' turned on. Return the ''FBA'' solution');
         V= MILPsolution.full(1:nRxns);
 end
-        
+
 end
 
 function flux = getObjectiveFlux(LPsolution,LPproblem)
