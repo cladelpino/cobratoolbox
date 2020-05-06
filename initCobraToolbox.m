@@ -45,6 +45,10 @@ global CBT_MISSING_REQUIREMENTS_ERROR_ID;
 if ~exist('updateToolbox','var')
     updateToolbox = true;
 end
+
+gitAndCurlStuff = updateToolbox;
+
+
 % define a base version of gitBash that is tested
 gitBashVersion = '2.13.3';
 
@@ -113,17 +117,21 @@ addpath(genpath([CBTDIR filesep 'external' filesep 'base' filesep 'utilities' fi
 % add the install folder
 addpath(genpath([CBTDIR filesep 'src' filesep 'base' filesep 'install']));
 
-% check if git is installed
-[installedGit, versionGit] = checkGit();
 
-% set the depth flag if the version of git is higher than 2.10.0
-depthFlag = '';
-if installedGit && versionGit > 2100
-    depthFlag = '--depth=1';
+if(gitAndCurlStuff)
+	% check if git is installed
+	[installedGit, versionGit] = checkGit();
+	% set the depth flag if the version of git is higher than 2.10.0
+	depthFlag = '';
+	if installedGit && versionGit > 2100
+		depthFlag = '--depth=1';
+	end
 end
 
 % change to the root of The COBRA Tooolbox
 cd(CBTDIR);
+
+if(gitAndCurlStuff)
 
 % configure a remote tracking repository
 if ENV_VARS.printLevel
@@ -218,6 +226,8 @@ elseif status_curl == 0
     end
 end
 
+end
+
 %get the current content of the init Folder
 dirContent = getFilesInDir('type','all');
 
@@ -275,9 +285,11 @@ else
     end
 end
 
+if(gitAndCurlStuff)
 % define xml test file
 xmlTestModel = 'ecoli_core_model.xml';
 xmlTestFile = [getDistributedModelFolder(xmlTestModel) filesep xmlTestModel];
+end
 
 % save the userpath
 originalUserPath = path;
